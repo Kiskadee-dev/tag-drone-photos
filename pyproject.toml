@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.11"
 rich = "^13.3.5"
 geopy = "^2.3.0"
+pillow = "^9.5.0"
 
 
 [build-system]

@@ -1,3 +1,20 @@
+"""
+Copyright: Matheus Victor @ 2023
+
+Search jpegs recursively and tags them based on exif coordinates
+The coordinates are reverse coded with Geopy Nominatim so they are human readable
+
+TODO: add support for raw images
+TODO: add support for videos
+
+Install dependencies:
+poetry install
+
+Usage:
+poetry run python tag.py path-to-folder
+"""
+
+
 import argparse
 import os
 from pathlib import Path
@@ -7,6 +24,7 @@ from PIL.ExifTags import TAGS, GPSTAGS
 from geopy.geocoders import Nominatim
 from rich import print
 from rich.progress import track
+from typing import Tuple
 
 parser = argparse.ArgumentParser()
 parser.add_argument("path")
@@ -21,8 +39,13 @@ if not target_dir.exists():
 geolocator = Nominatim(user_agent="geoapiExercises")
 
 
-def get_exif_data(image):
-    """Returns a dictionary from the exif data of an PIL Image item. Also converts the GPS Tags"""
+def get_exif_data(image) -> dict[str, dict]:
+    """
+    Returns a dictionary from the exif data of an PIL Image.
+
+    :param image: PIL Image
+    :return: Dictionary with the decoded exif data as dict[str, dict]
+    """
     exif_data = {}
     try:
         info = image._getexif()
@@ -43,13 +66,18 @@ def get_exif_data(image):
     return exif_data
 
 
-def dms_to_dd(exif):
+def dms_to_dd(exif: dict) -> Tuple[float, float]:
+    """
+    Converts the coordinates from dms to dd
+    :param exif: the exif dict
+    :return: (float, float)
+    """
     if "GPSInfo" not in exif.keys():
-        return None
+        raise ValueError("No GPS Info in exif")
 
-    GPSInfo = exif["GPSInfo"]
-    dms_lat = GPSInfo["GPSLatitude"]
-    dms_long = GPSInfo["GPSLongitude"]
+    gps_info = exif["GPSInfo"]
+    dms_lat = gps_info["GPSLatitude"]
+    dms_long = gps_info["GPSLongitude"]
 
     def get_dd(gps_coords):
         d, m, s = gps_coords
@@ -59,50 +87,57 @@ def dms_to_dd(exif):
     return get_dd(dms_lat), get_dd(dms_long)
 
 
-# Search images recursively and create tags from exif location
+paths_to_process: list[Path] = []
 
 
-def image():
-    pass
-
-
-paths_to_process = []
-
-
-def recurse(folder):
+def recurse(folder) -> None:
+    """
+    Find the files and add jpeg images to queue recursively
+    :param folder: path to the folder
+    :return: None
+    """
     files = os.listdir(folder)
     for f in files:
         path = Path(folder, f)
         if path.is_dir():
             recurse(path)
         elif path.is_file():
-            if not Path(str(path) + ".txt").exists() and not path.name.endswith(".txt") and not path.name.lower().endswith(".dng"):
+            if not Path(str(path) + ".txt").exists() and (
+                path.name.endswith(".jpg") or path.name.endswith(".jpeg")
+            ):
                 print(f"[yellow]Queued {path}[/yellow]")
                 paths_to_process.append(path)
             else:
                 print(f"[cyan]Skipping file[/cyan]")
 
 
+def write_tags(paths: list[Path]):
+    """
+    Write tags to a text file next to the image based on gps coordinates
+    :param paths: Queue of jpeg paths to process
+    :return: None
+    """
+
+    for file_path in track(paths, description="Processing images.."):
+        try:
+            with Image.open(file_path) as image:
+                print(f"Opening [blue]{file_path}[/blue]")
+                exif = get_exif_data(image)
+                if file_path.name.endswith(".tiff"):
+                    print(f"[gray]Tiff is not supported yet[/gray]")
+                elif exif is None or "GPSInfo" not in exif.keys():
+                    print(f"[blink red]No gps data in exif[/blink red]")
+                else:
+                    lat, long = dms_to_dd(get_exif_data(image))
+                    location = geolocator.reverse(str(lat) + "," + str(long))
+                    print(f"[green]{location}[/green]")
+                    with open(str(file_path) + ".txt", "w", encoding="utf-8") as tagfile:
+                        tagfile.write(f"{location}")
+                        tagfile.close()
+
+        except OSError:
+            print(f"[red]Can't open {file_path}[/red]")
+
+
 recurse(target_dir)
-
-
-for p in track(paths_to_process, description="Processing data.."):
-    try:
-        with Image.open(p) as im:
-            print(f"Opening [blue]{p}[/blue]")
-            exif = get_exif_data(im)
-            if p.name.endswith(".tiff"):
-                print(f"[gray]Tiff is not supported yet[/gray]")
-            elif exif is None or "GPSInfo" not in exif.keys():
-                print(f"[blink red]No gps data in exif[/blink red]")
-            else:
-                lat, long = dms_to_dd(get_exif_data(im))
-                location = geolocator.reverse(str(lat) + "," + str(long))
-                print(f"[green]{location}[/green]")
-                with open(str(p) + ".txt", "w", encoding="utf-8") as tagfile:
-                    tagfile.write(f"{location}")
-                    tagfile.close()
-
-    except OSError:
-        print(f"[red]Can't open {p}[/red]")
-        pass
+write_tags(paths_to_process)
