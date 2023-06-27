@@ -12,6 +12,9 @@ geopy = "^2.3.0"
 pillow = "^9.5.0"
 
 
+[tool.poetry.group.dev.dependencies]
+sphinx = "^7.0.1"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
