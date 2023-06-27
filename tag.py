@@ -4,14 +4,14 @@ Copyright: Matheus Victor @ 2023
 Search jpegs recursively and tags them based on exif coordinates
 The coordinates are reverse coded with Geopy Nominatim so they are human readable
 
-TODO: add support for raw images
-TODO: add support for videos
-
 Install dependencies:
 poetry install
 
 Usage:
 poetry run python tag.py path-to-folder
+
+TODO: add support for raw images
+TODO: add support for videos
 """
 
 
@@ -32,7 +32,9 @@ def get_exif_data(image) -> dict[str, dict]:
     Returns a dictionary from the exif data of an PIL Image.
 
     :param image: PIL Image
+    :type image: PIL Image
     :return: Dictionary with the decoded exif data as dict[str, dict]
+    :rtype: dict[str, dict]
     """
     exif_data = {}
     try:
@@ -57,8 +59,11 @@ def get_exif_data(image) -> dict[str, dict]:
 def dms_to_dd(exif: dict) -> Tuple[float, float]:
     """
     Converts the coordinates from dms to dd
+
     :param exif: the exif dict
-    :return: (float, float)
+    :type exif: dict
+    :return: A tuple of the dd coordinates
+    :rtype: Tuple(float, float)
     """
     if "GPSInfo" not in exif.keys():
         raise ValueError("No GPS Info in exif")
@@ -83,12 +88,11 @@ class TAGGER:
 
     def recurse(self, folder: Path) -> None:
         """
-        Find the files and add jpeg images to queue recursively
-        :param folder:
-        path to images folder
+        Find the files and add jpeg images to queue recursively.
 
-        :return:
-        None
+        :param folder: path to images folder
+        :type folder: Path
+        :return: None
         """
         files = os.listdir(folder)
         for f in files:
@@ -106,12 +110,10 @@ class TAGGER:
 
     def write_tags(self):
         """
-        Write tags to a text file next to the image based on gps coordinates
+        Write tags to a text file next to the image based on gps coordinates.
 
-        This function is slow and requires internet access
+        This function is slow and requires internet access due to `Geopy`.
 
-
-        :param paths: Queue of jpeg paths to process
         :return: None
         """
         paths: list[Path] = self.paths_to_process
